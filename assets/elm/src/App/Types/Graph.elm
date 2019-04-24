@@ -10,15 +10,20 @@ module App.Types.Graph exposing
     , getOutboundConnections
     , getParents
     , hasChildren
+    , hasSubgraphLoaded
+    , hasSubgraphLoading
+    , hasSubgraphsLoading
     , incrementIncoming
     , incrementOutgoing
     , initGraph
     , member
     , mergeSubgraph
     , pinned
+    , reachableFromPins
     , removeCoto
     , reorder
     , setLinkingPhrase
+    , setSubgraphLoading
     , update
     , updateCotoContent
     )
@@ -66,6 +71,8 @@ type alias Graph =
     , rootConnections : List Connection
     , connections : ConnectionDict
     , reachableCotoIds : Set CotoId
+    , loadedSubgraphs : Set CotonomaKey
+    , loadingSubgraphs : Set CotonomaKey
     }
 
 
@@ -75,7 +82,14 @@ defaultGraph =
     , rootConnections = []
     , connections = Dict.empty
     , reachableCotoIds = Set.empty
+    , loadedSubgraphs = Set.empty
+    , loadingSubgraphs = Set.empty
     }
+
+
+initGraph : Dict CotoId Coto -> List Connection -> ConnectionDict -> Graph
+initGraph cotos rootConnections connections =
+    defaultGraph |> update cotos rootConnections connections
 
 
 update : CotoDict -> List Connection -> ConnectionDict -> Graph -> Graph
@@ -88,18 +102,42 @@ update cotos rootConnections connections graph =
         |> updateReachableCotoIds
 
 
-initGraph : Dict CotoId Coto -> List Connection -> ConnectionDict -> Graph
-initGraph cotos rootConnections connections =
-    defaultGraph |> update cotos rootConnections connections
+setSubgraphLoading : CotonomaKey -> Graph -> Graph
+setSubgraphLoading cotonomaKey graph =
+    { graph | loadingSubgraphs = Set.insert cotonomaKey graph.loadingSubgraphs }
 
 
-mergeSubgraph : Graph -> Graph -> Graph
-mergeSubgraph subgraph graph =
+hasSubgraphsLoading : Graph -> Bool
+hasSubgraphsLoading graph =
+    not (Set.isEmpty graph.loadingSubgraphs)
+
+
+hasSubgraphLoading : CotonomaKey -> Graph -> Bool
+hasSubgraphLoading cotonomaKey graph =
+    Set.member cotonomaKey graph.loadingSubgraphs
+
+
+mergeSubgraph : CotonomaKey -> Graph -> Graph -> Graph
+mergeSubgraph cotonomaKey subgraph graph =
     graph
         |> update
             (Dict.union subgraph.cotos graph.cotos)
             graph.rootConnections
             (Dict.union subgraph.connections graph.connections)
+        |> setSubgraphLoaded cotonomaKey
+
+
+setSubgraphLoaded : CotonomaKey -> Graph -> Graph
+setSubgraphLoaded cotonomaKey graph =
+    { graph
+        | loadedSubgraphs = Set.insert cotonomaKey graph.loadedSubgraphs
+        , loadingSubgraphs = Set.remove cotonomaKey graph.loadingSubgraphs
+    }
+
+
+hasSubgraphLoaded : CotonomaKey -> Graph -> Bool
+hasSubgraphLoaded cotonomaKey graph =
+    Set.member cotonomaKey graph.loadedSubgraphs
 
 
 pinned : CotoId -> Graph -> Bool
@@ -118,6 +156,11 @@ connected startId endId graph =
         |> Dict.get startId
         |> Maybe.map (List.any (\conn -> conn.end == endId))
         |> Maybe.withDefault False
+
+
+reachableFromPins : CotoId -> Graph -> Bool
+reachableFromPins cotoId graph =
+    Set.member cotoId graph.reachableCotoIds
 
 
 hasChildren : CotoId -> Graph -> Bool
@@ -176,10 +219,10 @@ updateCotoContent coto graph =
 
 cotonomatize : Cotonoma -> CotoId -> Graph -> Graph
 cotonomatize cotonoma cotoId graph =
-    updateCoto
-        cotoId
-        (\targetCoto -> { targetCoto | asCotonoma = Just cotonoma })
-        graph
+    graph
+        |> updateCoto cotoId
+            (\targetCoto -> { targetCoto | asCotonoma = Just cotonoma })
+        |> setSubgraphLoaded cotonoma.key
 
 
 removeCoto : CotoId -> Graph -> Graph

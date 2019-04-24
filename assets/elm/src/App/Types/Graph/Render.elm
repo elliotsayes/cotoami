@@ -1,4 +1,4 @@
-module App.Types.Graph.Render exposing (render)
+module App.Types.Graph.Render exposing (addSubgraph, render)
 
 import App.Ports.Graph exposing (Edge, Node, defaultEdge, defaultNode)
 import App.Submodels.Context exposing (Context)
@@ -7,19 +7,25 @@ import App.Types.Coto exposing (Coto, Cotonoma)
 import App.Types.Graph exposing (Graph)
 import Dict
 import Exts.Maybe exposing (isJust)
-import Set
 
 
 render : Context context -> Graph -> Cmd msg
 render context graph =
-    graph
-        |> toTopicGraph
-        |> convert context
-        |> App.Ports.Graph.renderGraph
+    App.Ports.Graph.renderGraph (convert context graph)
+
+
+addSubgraph : Context context -> Graph -> Cmd msg
+addSubgraph context graph =
+    App.Ports.Graph.addSubgraph (convert context graph)
 
 
 convert : Context context -> Graph -> App.Ports.Graph.Model
 convert context graph =
+    graph |> prune |> toRenderModel context
+
+
+toRenderModel : Context context -> Graph -> App.Ports.Graph.Model
+toRenderModel context graph =
     let
         rootNode =
             convertCurrentCotonoma context
@@ -69,12 +75,22 @@ convertCurrentCotonoma context =
 
 convertCoto : Graph -> Coto -> Node
 convertCoto graph coto =
+    let
+        subgraphLoaded =
+            coto.asCotonoma
+                |> Maybe.map
+                    (\cotonoma ->
+                        App.Types.Graph.hasSubgraphLoaded cotonoma.key graph
+                    )
+                |> Maybe.withDefault True
+    in
     { defaultNode
         | id = coto.id
         , label = App.Types.Coto.toTopic coto |> Maybe.withDefault ""
         , pinned = App.Types.Graph.pinned coto.id graph
         , asCotonoma = isJust coto.asCotonoma
         , imageUrl = Maybe.map .avatarUrl coto.amishi
+        , subgraphLoaded = subgraphLoaded
         , incomings = coto.incomings |> Maybe.withDefault 0
         , outgoings = coto.outgoings |> Maybe.withDefault 0
     }
@@ -89,16 +105,8 @@ convertConnection sourceId connection =
                     phraseNodeId =
                         sourceId ++ "-" ++ connection.end
                 in
-                ( [ { defaultEdge
-                        | source = sourceId
-                        , target = phraseNodeId
-                        , toLinkingPhrase = True
-                    }
-                  , { defaultEdge
-                        | source = phraseNodeId
-                        , target = connection.end
-                        , fromLinkingPhrase = True
-                    }
+                ( [ App.Ports.Graph.initEdgeToLinkingPhrase sourceId phraseNodeId
+                  , App.Ports.Graph.initEdgeFromLinkingPhrase phraseNodeId connection.end
                   ]
                 , [ { defaultNode
                         | id = phraseNodeId
@@ -109,40 +117,35 @@ convertConnection sourceId connection =
                 )
             )
         |> Maybe.withDefault
-            ( [ { defaultEdge
-                    | source = sourceId
-                    , target = connection.end
-                }
-              ]
+            ( [ App.Ports.Graph.initEdge sourceId connection.end ]
             , []
             )
 
 
-toTopicGraph : Graph -> Graph
-toTopicGraph graph =
+prune : Graph -> Graph
+prune graph =
     let
         topicCotos =
             graph.cotos
                 |> Dict.filter
-                    (\cotoId coto ->
-                        isJust (App.Types.Coto.toTopic coto)
+                    (\_ coto -> isJust (App.Types.Coto.toTopic coto))
+
+        connections =
+            graph.connections
+                |> Dict.filter
+                    (\sourceId _ ->
+                        App.Types.Graph.getCoto sourceId graph
+                            |> Maybe.andThen .asCotonoma
+                            |> Maybe.map
+                                (\cotonoma ->
+                                    App.Types.Graph.hasSubgraphLoaded cotonoma.key graph
+                                )
+                            |> Maybe.withDefault True
                     )
     in
-    { graph | cotos = topicCotos }
+    { graph | cotos = topicCotos, connections = connections }
         |> deleteInvalidConnections
         |> excludeUnreachables
-
-
-excludeUnreachables : Graph -> Graph
-excludeUnreachables graph =
-    let
-        reachableCotos =
-            Dict.filter
-                (\cotoId coto -> Set.member cotoId graph.reachableCotoIds)
-                graph.cotos
-    in
-    { graph | cotos = reachableCotos }
-        |> deleteInvalidConnections
 
 
 deleteInvalidConnections : Graph -> Graph
@@ -170,4 +173,20 @@ deleteInvalidConnections graph =
                     )
                 |> Dict.fromList
     in
-    { graph | rootConnections = rootConnections, connections = connections }
+    graph
+        |> App.Types.Graph.update
+            graph.cotos
+            rootConnections
+            connections
+
+
+excludeUnreachables : Graph -> Graph
+excludeUnreachables graph =
+    let
+        reachableCotos =
+            Dict.filter
+                (\cotoId coto -> App.Types.Graph.reachableFromPins cotoId graph)
+                graph.cotos
+    in
+    { graph | cotos = reachableCotos }
+        |> deleteInvalidConnections

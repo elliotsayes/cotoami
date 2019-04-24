@@ -32,29 +32,38 @@ elmApp.ports.setUnreadStateInTitle.subscribe((unread) => {
     "/images/favicon/favicon-32x32.png"
 })
 
+const _convertGraphData = (nodes, edges) => {
+  return map(nodes.concat(edges), element => {
+    return {
+      data: element,
+      classes:
+        compact([
+          element.asCotonoma ? 'cotonoma' : null,
+          element.asLinkingPhrase ? 'linking-phrase' : null,
+          element.pinned ? 'pinned' : null,
+          element.toLinkingPhrase ? 'to-linking-phrase' : null,
+          element.fromLinkingPhrase ? 'from-linking-phrase' : null,
+          element.subgraphLoaded ? null : 'subgraph-not-loaded'
+        ]).join(' ')
+    }
+  })
+}
+
 elmApp.ports.renderGraph.subscribe(({ rootNodeId, nodes, edges }) => {
   Cytoscape.render(
     document.getElementById('coto-graph-canvas'),
     rootNodeId,
-    map(nodes.concat(edges), element => {
-      return {
-        data: element,
-        classes:
-          compact([
-            element.asCotonoma ? 'cotonoma' : null,
-            element.asLinkingPhrase ? 'linking-phrase' : null,
-            element.pinned ? 'pinned' : null,
-            element.toLinkingPhrase ? 'to-linking-phrase' : null,
-            element.fromLinkingPhrase ? 'from-linking-phrase' : null
-          ]).join(' ')
-      }
-    }),
+    _convertGraphData(nodes, edges),
     (nodeId) => {
       if (nodeId != 'home') {
         elmApp.ports.nodeClicked.send(nodeId)
       }
     }
   )
+})
+
+elmApp.ports.addSubgraph.subscribe(({ rootNodeId, nodes, edges }) => {
+  Cytoscape.addSubgraph(_convertGraphData(nodes, edges))
 })
 
 elmApp.ports.resizeGraph.subscribe(() => {

@@ -19,8 +19,9 @@
         margin-right: 10px;
       }
 
-      a.graph-view i {
-        font-size: 20px;
+      a.graph-view img {
+        width: 20px;
+        height: 20px;
         vertical-align: 2px;
       }
     }
@@ -83,6 +84,14 @@
       }
     }
 
+    div.loading-subgraphs {
+      display: inline-block;
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 15;
+    }
+
     #coto-graph-canvas {
       background-color: #fff;
       width: 100%;
@@ -105,8 +114,7 @@
     animation-duration: 1s;
 
     & > div.coto-inner > div.coto-header {
-      i.pinned,
-      i.connected {
+      i.pinned {
         display: none;
       }
     }

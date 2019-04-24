@@ -32,6 +32,7 @@ import App.Types.Amishi exposing (Presences)
 import App.Types.Coto exposing (Coto, CotoId, CotonomaKey, ElementId)
 import App.Types.Graph
 import App.Types.Graph.Connect
+import App.Types.Graph.Render
 import App.Types.SearchResults
 import App.Types.Timeline
 import App.Types.Traversal
@@ -208,11 +209,15 @@ update msg model =
         GraphFetched (Err _) ->
             model |> withoutCmd
 
-        SubgraphFetched (Ok subgraph) ->
-            { model | graph = App.Types.Graph.mergeSubgraph subgraph model.graph }
-                |> withCmd (\_ -> App.Commands.sendMsg GraphChanged)
+        LoadSubgraph cotonomaKey ->
+            App.Server.Graph.fetchSubgraph cotonomaKey model.graph
+                |> Tuple.mapFirst (\graph -> { model | graph = graph })
 
-        SubgraphFetched (Err _) ->
+        SubgraphFetched cotonomaKey (Ok subgraph) ->
+            { model | graph = App.Types.Graph.mergeSubgraph cotonomaKey subgraph model.graph }
+                |> withCmd (\model -> App.Types.Graph.Render.addSubgraph model model.graph)
+
+        SubgraphFetched cotonomaKey (Err _) ->
             model |> withoutCmd
 
         SelectImportFile ->
@@ -271,7 +276,13 @@ update msg model =
                 |> withoutCmd
 
         OpenTraversal cotoId ->
-            model
+            let
+                ( graph, fetchSubgraph ) =
+                    App.Server.Graph.fetchSubgraphIfCotonoma
+                        (App.Submodels.LocalCotos.getCoto cotoId model)
+                        model.graph
+            in
+            { model | graph = graph }
                 |> App.Model.openTraversal cotoId
                 |> App.Submodels.Modals.clearModals
                 |> withCmd
@@ -279,7 +290,7 @@ update msg model =
                         Cmd.batch
                             [ App.Commands.scrollGraphExplorationToRight NoOp
                             , App.Commands.scrollTraversalsPaginationToRight NoOp
-                            , App.Server.Graph.fetchSubgraphIfCotonoma model.graph cotoId
+                            , fetchSubgraph
                             , App.Views.Stock.resizeGraphWithDelay
                             ]
                     )

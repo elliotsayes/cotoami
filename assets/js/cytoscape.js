@@ -1,6 +1,7 @@
 // Graph rendering by Cytoscape.js
 
 import debounce from 'lodash/debounce'
+import forEach from 'lodash/forEach'
 
 const _hankakuOnly = (text) => {
   return text.match(/^[\x01-\x7E\uFF65-\uFF9F\u2019]+$/) != null
@@ -86,6 +87,9 @@ const _style = cytoscape.stylesheet()
     'font-size': 10,
     'font-weight': 'bold'
   })
+  .selector('.cotonoma.subgraph-not-loaded').css({
+    'background-image-opacity': 0.5
+  })
   .selector('.linking-phrase').css({
     'border-width': 0,
     'padding': 4,
@@ -123,6 +127,9 @@ const _style = cytoscape.stylesheet()
     'source-arrow-color': color_selected,
     'target-arrow-color': color_selected
   })
+  .selector('.cotonoma:selected').css({
+    'border-width': 2
+  })
   .selector('.faded').css({
     'opacity': 0.25,
     'text-opacity': 0,
@@ -150,12 +157,18 @@ const _getCenterNodeId = () => {
 }
 
 const _setFocus = (nodeId) => {
+  _focusNodeId = nodeId
   if (_graph != null) {
     _graph.elements().addClass('faded')
     const node = _graph.getElementById(nodeId)
     node.select()
     node.neighborhood().add(node).removeClass('faded')
   }
+}
+
+const _unfocus = () => {
+  _graph.elements().removeClass('faded')
+  _focusNodeId = null
 }
 
 export default class {
@@ -177,16 +190,14 @@ export default class {
     })
 
     _graph.on('tap', 'node', (e) => {
-      const node = e.target
-      _focusNodeId = node.data('id')
-      _setFocus(_focusNodeId)
-      onNodeClick(_focusNodeId)
+      const nodeId = e.target.data('id')
+      _setFocus(nodeId)
+      onNodeClick(nodeId)
     })
 
     _graph.on('tap', (e) => {
       if (e.target === _graph) {
-        _graph.elements().removeClass('faded')
-        _focusNodeId = null
+        _unfocus()
       }
     })
 
@@ -196,6 +207,16 @@ export default class {
         _graph.center(_graph.getElementById(_getCenterNodeId()))
       }
     }, 500))
+  }
+
+  static addSubgraph(subgraph) {
+    if (_graph != null) {
+      forEach(subgraph, (element) => {
+        _graph.remove('#' + element.data.id)
+      })
+      _graph.add(subgraph)
+      _graph.layout(_layout).run()
+    }
   }
 
   static resize() {

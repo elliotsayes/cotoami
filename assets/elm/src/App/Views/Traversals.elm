@@ -100,8 +100,7 @@ traversalDiv context traversal connections startCoto =
     div [ class "traversal" ]
         [ div
             [ class "column-header" ]
-            [ span [ class "description" ] [ faIcon "sitemap" Nothing ]
-            , a
+            [ a
                 [ class "tool-button close-traversal"
                 , href "/"
                 , onLinkButtonClick (AppMsg.TraversalsMsg (CloseTraversal traversal.start))
@@ -178,6 +177,7 @@ stepCotoDiv context connections step coto =
             [ App.Views.Coto.headerDiv context Nothing elementId coto
             , App.Views.Coto.bodyDivByCoto context Nothing elementId coto
             , div [ class "main-sub-border" ] []
+            , loadingSubgraphDiv context step coto
             , if App.Submodels.Context.hasSubCotosInReordering elementId context then
                 App.Views.Reorder.closeButtonDiv context
 
@@ -193,7 +193,25 @@ stepCotoDiv context connections step coto =
         ]
 
 
-stepDiv : Context a -> TraversalStep -> Maybe (Html AppMsg.Msg)
+loadingSubgraphDiv : Context context -> TraversalStep -> Coto -> Html AppMsg.Msg
+loadingSubgraphDiv context step coto =
+    coto.asCotonoma
+        |> Maybe.map
+            (\cotonoma ->
+                if
+                    (step.index == -1)
+                        && not (App.Types.Graph.hasSubgraphLoaded cotonoma.key context.graph)
+                then
+                    div [ class "loading-subgraph" ]
+                        [ Utils.HtmlUtil.loadingHorizontalImg ]
+
+                else
+                    Utils.HtmlUtil.none
+            )
+        |> Maybe.withDefault Utils.HtmlUtil.none
+
+
+stepDiv : Context context -> TraversalStep -> Maybe (Html AppMsg.Msg)
 stepDiv context step =
     let
         connections =
@@ -334,7 +352,7 @@ traverseButtonDiv : Graph -> TraversalStep -> Coto -> Html AppMsg.Msg
 traverseButtonDiv graph { traversal, index } coto =
     div [ class "sub-cotos-button" ]
         [ if isJust coto.asCotonoma then
-            openTraversalButton coto.id
+            App.Views.Coto.openTraversalButton coto.id
 
           else if App.Types.Graph.hasChildren coto.id graph then
             a
@@ -347,15 +365,6 @@ traverseButtonDiv graph { traversal, index } coto =
           else
             Utils.HtmlUtil.none
         ]
-
-
-openTraversalButton : CotoId -> Html AppMsg.Msg
-openTraversalButton cotoId =
-    a
-        [ class "tool-button open-traversal"
-        , onLinkButtonClick (OpenTraversal cotoId)
-        ]
-        [ materialIcon "arrow_forward" Nothing ]
 
 
 type alias UpdateModel a =
