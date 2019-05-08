@@ -1,8 +1,5 @@
 module App.Views.CotoSelection exposing
-    ( Model
-    , closeColumnIfEmpty
-    , defaultModel
-    , statusBar
+    ( statusBar
     , update
     , view
     )
@@ -11,18 +8,19 @@ import App.I18n.Keys as I18nKeys
 import App.Markdown
 import App.Messages as AppMsg exposing (..)
 import App.Submodels.Context exposing (Context)
+import App.Submodels.CotoSelection exposing (CotoSelection)
 import App.Submodels.LocalCotos exposing (LocalCotos)
-import App.Types.Coto exposing (Coto, CotoId, CotoSelection, Cotonoma, ElementId)
+import App.Submodels.NarrowViewport exposing (ActiveView(..), NarrowViewport)
+import App.Submodels.WideViewport exposing (WideViewport)
+import App.Types.Coto exposing (Coto, CotoId, Cotonoma, ElementId)
 import App.Views.Coto
 import App.Views.CotoSelectionMsg as CotoSelectionMsg exposing (Msg(..))
-import App.Views.ViewSwitchMsg exposing (ActiveView(..))
 import Exts.Maybe exposing (isJust)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput)
 import Html.Keyed
 import Process
-import Set
 import Task
 import Time
 import Utils.EventUtil exposing (onLinkButtonClick)
@@ -31,39 +29,25 @@ import Utils.StringUtil exposing (isBlank)
 import Utils.UpdateUtil exposing (..)
 
 
-type alias Model =
-    { columnOpen : Bool
-    }
-
-
-defaultModel : Model
-defaultModel =
-    { columnOpen = False
-    }
-
-
 type alias UpdateModel model =
-    Context
-        { model
-            | selectionView : Model
-            , selection : CotoSelection
-            , activeView : ActiveView
-        }
+    Context (WideViewport (NarrowViewport (CotoSelection model)))
 
 
-update : Context context -> CotoSelectionMsg.Msg -> UpdateModel model -> ( UpdateModel model, Cmd AppMsg.Msg )
-update context msg ({ selectionView } as model) =
+update :
+    Context context
+    -> CotoSelectionMsg.Msg
+    -> UpdateModel model
+    -> ( UpdateModel model, Cmd AppMsg.Msg )
+update context msg model =
     case msg of
         ColumnToggle ->
-            { model
-                | selectionView =
-                    { selectionView | columnOpen = not selectionView.columnOpen }
-            }
+            model
+                |> App.Submodels.WideViewport.toggleSelection
                 |> withoutCmd
 
         DeselectingCoto cotoId ->
             model
-                |> App.Submodels.Context.setBeingDeselected cotoId
+                |> App.Submodels.CotoSelection.setBeingDeselected cotoId
                 |> withCmd
                     (\model ->
                         Process.sleep (1 * Time.second)
@@ -73,40 +57,29 @@ update context msg ({ selectionView } as model) =
 
         DeselectCoto ->
             model
-                |> App.Submodels.Context.finishBeingDeselected
-                |> closeColumnIfEmpty
+                |> App.Submodels.CotoSelection.finishBeingDeselected
+                |> App.Submodels.WideViewport.closeSelectionIfEmpty context
                 |> withoutCmd
 
         ClearSelection ->
-            { model
-                | selectionView = { selectionView | columnOpen = False }
-                , activeView =
-                    case model.activeView of
+            let
+                activeView =
+                    case model.narrowViewport.activeView of
                         SelectionView ->
                             FlowView
 
                         anotherView ->
                             anotherView
-            }
-                |> App.Submodels.Context.clearSelection
+            in
+            model
+                |> App.Submodels.CotoSelection.clear
+                |> App.Submodels.WideViewport.closeSelection
+                |> App.Submodels.NarrowViewport.switchActiveView activeView
                 |> withoutCmd
 
 
-closeColumnIfEmpty : UpdateModel model -> UpdateModel model
-closeColumnIfEmpty ({ selectionView } as model) =
-    if List.isEmpty model.selection then
-        { model | selectionView = { selectionView | columnOpen = False } }
-
-    else
-        model
-
-
 type alias ViewModel model =
-    LocalCotos
-        { model
-            | selectionView : Model
-            , selection : CotoSelection
-        }
+    LocalCotos (WideViewport (CotoSelection model))
 
 
 statusBar : Context context -> ViewModel model -> Html AppMsg.Msg
@@ -124,14 +97,25 @@ statusBar context model =
             [ ( "empty", List.isEmpty model.selection )
             ]
         ]
-        [ a [ class "close", onClick (AppMsg.CotoSelectionMsg ClearSelection) ]
+        [ a
+            [ class "close"
+            , onClick (AppMsg.CotoSelectionMsg ClearSelection)
+            ]
             [ faIcon "times" Nothing ]
-        , div [ class "selection-info" ]
-            [ faIcon "check-square-o" Nothing
-            , span [ class "selection-count" ] [ text (toString count) ]
-            , span [ class "text" ] [ text (" " ++ message) ]
-            , a [ class "toggle", onClick (AppMsg.CotoSelectionMsg ColumnToggle) ]
-                [ if model.selectionView.columnOpen then
+        , div [ class "content" ]
+            [ span
+                [ class "selection-info"
+                , onClick (AppMsg.SwitchViewInNarrowViewport SelectionView)
+                ]
+                [ faIcon "check-square-o" Nothing
+                , span [ class "selection-count" ] [ text (toString count) ]
+                , span [ class "text" ] [ text (" " ++ message) ]
+                ]
+            , a
+                [ class "toggle"
+                , onClick (AppMsg.CotoSelectionMsg ColumnToggle)
+                ]
+                [ if model.wideViewport.selectionOpen then
                     faIcon "caret-up" Nothing
 
                   else
@@ -165,33 +149,20 @@ validateTitle title =
 
 selectedCotosDiv : Context context -> ViewModel model -> Html AppMsg.Msg
 selectedCotosDiv context model =
-    Html.Keyed.node
-        "div"
-        [ id "selected-cotos" ]
-        (List.filterMap
-            (\cotoId ->
-                case App.Submodels.LocalCotos.getCoto cotoId model of
-                    Nothing ->
-                        Nothing
-
-                    Just coto ->
-                        Just
-                            ( toString cotoId
-                            , cotoDiv
-                                context
-                                (context.deselecting |> Set.member cotoId)
-                                coto
-                            )
-            )
-            (List.reverse model.selection)
-        )
+    model
+        |> App.Submodels.CotoSelection.cotosInSelectedOrder
+        |> List.map (\coto -> ( toString coto.id, cotoDiv context coto ))
+        |> Html.Keyed.node "div" [ id "selected-cotos" ]
 
 
-cotoDiv : Context a -> Bool -> Coto -> Html AppMsg.Msg
-cotoDiv context beingDeselected coto =
+cotoDiv : Context context -> Coto -> Html AppMsg.Msg
+cotoDiv context coto =
     let
         elementId =
             "selection-" ++ coto.id
+
+        beingDeselected =
+            App.Submodels.CotoSelection.isBeingDeselected coto.id context
     in
     div
         [ classList

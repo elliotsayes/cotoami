@@ -27,6 +27,9 @@ text key =
         Saving ->
             "保存中"
 
+        Hide ->
+            "隠す"
+
         Connection_LinkingPhraseInput ->
             "説明（省略可）"
 
@@ -104,6 +107,9 @@ text key =
 
         Flow_TileView ->
             "タイル"
+
+        Flow_Random ->
+            "ランダム"
 
         Flow_NewPosts ->
             "新しい投稿"

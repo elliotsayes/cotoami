@@ -52,20 +52,6 @@
 div.flow-toolbar {
   position: relative;
 
-  a.flow-toggle {
-    position: absolute;
-    top: 4px;
-    right: -3px;
-
-    @media (#{$narrow-viewport}) {
-      display: none;
-    }
-
-    i {
-      font-size: 30px;
-    }
-  }
-
   div.tools {
     position: absolute;
     top: 7px;
@@ -90,6 +76,14 @@ div.flow-toolbar {
 
     a.stream-view {
       margin-right: 10px;
+    }
+
+    span.random {
+      margin-left: 20px;
+
+      i {
+        font-size: 1.6rem;
+      }
     }
   }
 }
@@ -126,27 +120,6 @@ div.timeline {
   @media (#{$wide-viewport}) {
     padding-left: 10px;
     padding-right: 10px;
-  }
-
-  div.posts-on-day {
-    margin-top: 20px;
-
-    div.date-header {
-      z-index: 10;
-      position: -webkit-sticky;
-      position: sticky;
-      top: -8px;
-      left: 0;
-      padding: 10px;
-      padding-left: 0;
-
-      span.date {
-        color: #999;
-        background-color: #f8f8f8;
-        padding: 10px;
-        font-size: 1.5rem;
-      }
-    }
   }
 
   &.exclude-pinned-graph div.coto.in-pinned-graph {

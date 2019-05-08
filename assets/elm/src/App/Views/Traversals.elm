@@ -6,15 +6,15 @@ module App.Views.Traversals exposing
 import App.Markdown
 import App.Messages as AppMsg exposing (..)
 import App.Submodels.Context exposing (Context)
+import App.Submodels.NarrowViewport exposing (ActiveView(..), NarrowViewport)
 import App.Submodels.Traversals
 import App.Types.Connection exposing (Connection, InboundConnection, Reordering(..))
-import App.Types.Coto exposing (Coto, CotoId, CotoSelection, Cotonoma, ElementId)
+import App.Types.Coto exposing (Coto, CotoId, Cotonoma, ElementId)
 import App.Types.Graph exposing (Graph)
 import App.Types.Traversal exposing (..)
 import App.Views.Coto
 import App.Views.Reorder
 import App.Views.TraversalsMsg as TraversalsMsg exposing (Msg(..))
-import App.Views.ViewSwitchMsg exposing (ActiveView(..))
 import Dict
 import Exts.Maybe exposing (isJust)
 import Html exposing (..)
@@ -27,10 +27,7 @@ import Utils.UpdateUtil exposing (..)
 
 
 type alias ViewModel model =
-    { model
-        | activeView : ActiveView
-        , traversals : Traversals
-    }
+    NarrowViewport { model | traversals : Traversals }
 
 
 view : Context a -> ViewModel model -> List (Html AppMsg.Msg)
@@ -49,7 +46,7 @@ view context ({ traversals } as model) =
             (\index traversalDiv ->
                 let
                     active =
-                        (model.activeView == TraversalsView)
+                        (model.narrowViewport.activeView == TraversalsView)
                             && isActiveIndex index traversals
                 in
                 div
@@ -350,28 +347,29 @@ toPageLabel defaultLabel { content, summary } =
 
 traverseButtonDiv : Graph -> TraversalStep -> Coto -> Html AppMsg.Msg
 traverseButtonDiv graph { traversal, index } coto =
-    div [ class "sub-cotos-button" ]
-        [ if isJust coto.asCotonoma then
-            App.Views.Coto.openTraversalButton coto.id
+    if isJust coto.asCotonoma then
+        div [ class "sub-cotos-button" ]
+            [ App.Views.Coto.openTraversalButton coto.id ]
 
-          else if App.Types.Graph.hasChildren coto.id graph then
-            a
+    else if App.Types.Graph.hasChildren coto.id graph then
+        div [ class "sub-cotos-button" ]
+            [ a
                 [ class "tool-button traverse"
                 , onLinkButtonClick
                     (AppMsg.TraversalsMsg (Traverse traversal coto.id index))
                 ]
                 [ materialIcon "arrow_downward" Nothing ]
+            ]
 
-          else
-            Utils.HtmlUtil.none
-        ]
-
-
-type alias UpdateModel a =
-    App.Submodels.Traversals.Traversals a
+    else
+        Utils.HtmlUtil.none
 
 
-update : Context a -> TraversalsMsg.Msg -> UpdateModel b -> ( UpdateModel b, Cmd AppMsg.Msg )
+type alias UpdateModel model =
+    App.Submodels.Traversals.Traversals model
+
+
+update : Context context -> TraversalsMsg.Msg -> UpdateModel model -> ( UpdateModel model, Cmd AppMsg.Msg )
 update context msg ({ traversals } as model) =
     case msg of
         Traverse traversal nextCotoId stepIndex ->

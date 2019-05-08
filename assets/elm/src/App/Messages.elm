@@ -9,10 +9,12 @@ import App.Modals.InviteModalMsg
 import App.Modals.SigninModalMsg
 import App.Modals.TimelineFilterModalMsg
 import App.Ports.ImportFile exposing (ImportFile)
+import App.Server.Pagination exposing (PaginatedList)
+import App.Submodels.NarrowViewport exposing (ActiveView)
 import App.Types.Connection exposing (Connection, Reordering)
 import App.Types.Coto exposing (Coto, CotoContent, CotoId, Cotonoma, CotonomaKey, ElementId)
 import App.Types.Graph exposing (Graph)
-import App.Types.Post exposing (PaginatedPosts, Post)
+import App.Types.Post exposing (Post)
 import App.Types.Session exposing (Session)
 import App.Types.Watch exposing (Watch)
 import App.Views.AppHeaderMsg
@@ -22,7 +24,6 @@ import App.Views.FlowMsg
 import App.Views.ReorderMsg
 import App.Views.StockMsg
 import App.Views.TraversalsMsg
-import App.Views.ViewSwitchMsg
 import Http
 import Json.Encode exposing (Value)
 import Keyboard exposing (..)
@@ -37,12 +38,16 @@ type Msg
     | Confirm Msg
     | AppClick
     | OnLocationChange Location
+    | ToggleNavInNarrowViewport
+    | ToggleNavInWideViewport
+    | ToggleFlowInWideViewport
+    | SwitchViewInNarrowViewport ActiveView
     | MoveToHome
     | CotonomaPresenceState Value
     | CotonomaPresenceDiff Value
     | SessionFetched (Result Http.Error Session)
-    | HomePostsFetched (Result Http.Error PaginatedPosts)
-    | CotonomaPostsFetched (Result Http.Error ( Cotonoma, PaginatedPosts ))
+    | HomePostsFetched (Result Http.Error (PaginatedList Post))
+    | CotonomaPostsFetched (Result Http.Error ( Cotonoma, PaginatedList Post ))
     | CotonomasFetched (Result Http.Error ( List Cotonoma, List Cotonoma ))
     | SubCotonomasFetched (Result Http.Error (List Cotonoma))
     | GraphFetched (Result Http.Error Graph)
@@ -55,20 +60,20 @@ type Msg
     | SearchInputFocusChanged Bool
     | SearchInput String
     | Search
-    | SearchResultsFetched (Result Http.Error PaginatedPosts)
+    | SearchResultsFetched (Result Http.Error (List Post))
       --
       -- Coto
       --
     | CotoClick ElementId CotoId
     | CotoMouseEnter ElementId CotoId
     | CotoMouseLeave ElementId CotoId
-    | SelectCoto CotoId
+    | SelectCoto Coto
     | OpenTraversal CotoId
     | CotonomaClick CotonomaKey
     | ToggleCotoContent ElementId
-    | ConfirmDeleteCoto Coto
-    | DeleteCotoInServerSide Coto
-    | DeleteCotoInClientSide Coto
+    | ConfirmDeleteCoto CotoId
+    | DeleteCotoInServerSide CotoId
+    | DeleteCotoInClientSide CotoId
     | CotoDeleted (Result Http.Error String)
     | CotoUpdated (Result Http.Error Coto)
     | ConfirmCotonomatize Coto
@@ -109,6 +114,7 @@ type Msg
     | ClearModals
     | CloseActiveModal
     | OpenConfirmModal String Msg
+    | OpenAppInfoModal
     | OpenSigninModal
     | OpenProfileModal
     | OpenCotoMenuModal Coto
@@ -126,7 +132,6 @@ type Msg
       -- Sub components
       --
     | AppHeaderMsg App.Views.AppHeaderMsg.Msg
-    | ViewSwitchMsg App.Views.ViewSwitchMsg.Msg
     | FlowMsg App.Views.FlowMsg.Msg
     | StockMsg App.Views.StockMsg.Msg
     | TraversalsMsg App.Views.TraversalsMsg.Msg

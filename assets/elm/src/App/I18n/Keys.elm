@@ -9,6 +9,7 @@ type TextKey
     | Posting
     | Save
     | Saving
+    | Hide
     | Connection_LinkingPhraseInput
     | Confirm
     | ConfirmDeleteCoto
@@ -34,6 +35,7 @@ type TextKey
     | Flow_Filter
     | Flow_StreamView
     | Flow_TileView
+    | Flow_Random
     | Flow_NewPosts
     | Stock_DocumentView
     | Stock_GraphView

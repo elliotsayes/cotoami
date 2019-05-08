@@ -27,6 +27,9 @@ text key =
         Saving ->
             "Saving"
 
+        Hide ->
+            "Hide"
+
         Connection_LinkingPhraseInput ->
             "Linking phrase (optional)"
 
@@ -101,6 +104,9 @@ text key =
 
         Flow_TileView ->
             "Tile View"
+
+        Flow_Random ->
+            "Random"
 
         Flow_NewPosts ->
             "new posts"

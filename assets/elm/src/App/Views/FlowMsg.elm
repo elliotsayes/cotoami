@@ -12,8 +12,7 @@ type TimelineView
 
 
 type Msg
-    = ToggleFlow
-    | TimelineScrollPosInitialized Float
+    = TimelineScrollPosInitialized Float
     | ImageLoaded
     | SwitchView TimelineView
     | LoadMorePosts
@@ -24,3 +23,5 @@ type Msg
     | Posted Int (Result Http.Error Post)
     | PostedByConnectModal
     | Scroll ScrollPos
+    | Random
+    | RandomPostsFetched (Result Http.Error (List Post))
